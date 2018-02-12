@@ -107,9 +107,14 @@
     :id     :db-handler
     :before (fn db-handler-before
               [context]
-              (let [{:keys [db event]} (:coeffects context)
-                    new-context (->> (handler-fn db event)
-                                     (assoc-effect context :db))]
+              (let [new-context
+                    (trace/with-trace {:op-type :event/handler
+                                       :operation (get-in context [:coeffects :event])}
+                                      (let [{:keys [db event]} (:coeffects context)]
+                                        (->> (handler-fn db event)
+                                             (assoc-effect context :db))))]
+                ;; We merge these tags outside of the :event/handler trace because we want them to be assigned to the parent
+                ;; wrapping trace.
                 (trace/merge-trace!
                   {:tags {:effects   (:effects new-context)
                           :coeffects (:coeffects context)}})
